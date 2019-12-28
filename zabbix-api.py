@@ -83,12 +83,33 @@ class ZabbixAPI:
 # 获取原触发名称，并且替换特定字符串进行批量更新触发器名称
     def ReWriteTriggerName(self,Template_name):
         StringJson = self.GetAllTriggersIDFromTemplatesID(Template_name)
-        # print(StringJson)
-        # print(type(StringJson))
         for i in range(len(StringJson)):
             ret = re.sub('已关闭', 'is down',StringJson[i]["description"])
             self.updateTriggerName(StringJson[i]["triggerid"],ret)
 
+
+# 创建触发器
+    def CreateTrigger(self,description=None,expression=None,recovery_expression=None):
+        data = {
+                   "jsonrpc": "2.0",
+                   "method": "trigger.create",
+                   "params": {
+                        "description": description,
+                        "expression": expression,
+                        "priority": "4",
+                        "recovery_mode": "1",
+                        "recovery_expression": recovery_expression,
+                        "type": "1",
+                        "url": "",
+                        "status": "0",
+                        "correlation_mode": "0",
+                        "correlation_tag": "",
+                        "manual_close": "0"
+                   },
+        "auth": self.__token_id,
+        "id": 0
+    }
+        return self.PostRequest(data)
 # 根据所有主机的interfaceid和ip,为后续创建监控项做准备
     def GetHostID(self):
         data = {
@@ -150,14 +171,11 @@ class ZabbixAPI:
     def ReturnHostIDAndInterfaceid(self,ip):
         # 判断IP
         result = self.GetHostID()
-        # print("result的结果是%s", % result)
-        # real_ip = self.GetIpfromWorkDir(dir)
-        # 根据目录下有多少ip/文件进行遍历
-        # for ip in IpList:
-            # 根据当前zabbix下所有主机IP进行判断筛选
+        print("result的结果是%s",  result)
+        # 根据当前zabbix下所有主机IP进行判断筛选
         for i in range(len(result)):
             if result[i]["interfaces"][0]["ip"] == ip:
-                return result[i]["interfaces"][0]["interfaceid"], result[i]["hostid"]
+                return result[i]["interfaces"][0]["interfaceid"], result[i]["hostid"],result[i]["host"]
 
     # 添加监控项
     def AddItemsFact(self,name=None,key_=None,hostid=None,interfaceid=None):
@@ -189,7 +207,7 @@ class ZabbixAPI:
             # IP = self.GetIpfromWorkDir(dir)
             # eal_ip = IP[i]r
             # print("i1是%s", i)
-            interfaceid,hostid = self.ReturnHostIDAndInterfaceid(iplist[i])
+            interfaceid,hostid,hostname = self.ReturnHostIDAndInterfaceid(iplist[i])
             print(hostid,interfaceid)
             # print("i2是%s", i)
             print("filelistpath是%s", filelistpath[i])
@@ -216,6 +234,12 @@ class ZabbixAPI:
                 #     print("hostid1是%s", hostid)
                 #     print("interfaceid1是%s", interfaceid)
                     self.AddItemsFact(name,name,hostid,interfaceid)
+                    description = name + " is down"
+                    expression = "{" + hostname + ":" + name + ".last()}" + "<>0"
+                    recovery_expression = "{" + hostname + ":" + name + ".last()}" + "=0"
+                    # 根据description,expression,recovery_expression批量添加触发器
+                    self.CreateTrigger(description,expression,recovery_expression)
+
         # self.PostRequest(data)
 
 #
